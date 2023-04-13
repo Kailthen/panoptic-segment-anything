@@ -371,7 +371,11 @@ def generate_panoptic_mask(
         # overlay thing mask on panoptic inds
         panoptic_inds[thing_mask.squeeze()] = ind
         ind += 1
-    return panoptic_inds
+
+    fig = plt.figure()
+    plt.imshow(image)
+    plt.imshow(colorize(panoptic_inds), alpha=0.5)
+    return fig
 
 
 ckpt_repo_id = "ShilongLiu/GroundingDINO"
@@ -400,7 +404,7 @@ clipseg_model = CLIPSegForImageSegmentation.from_pretrained(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Grounded SAM demo", add_help=True)
+    parser = argparse.ArgumentParser("Panoptic Segment Anything demo", add_help=True)
     parser.add_argument("--debug", action="store_true", help="using debug mode")
     parser.add_argument("--share", action="store_true", help="share the app")
     args = parser.parse_args()
@@ -459,9 +463,7 @@ if __name__ == "__main__":
                     )
 
             with gr.Column():
-                gallery = gr.outputs.Image(
-                    type="pil",
-                ).style(full_width=True, full_height=True)
+                gr.Plot()
 
         run_button.click(
             fn=generate_panoptic_mask,
@@ -478,9 +480,5 @@ if __name__ == "__main__":
             outputs=[gallery],
         )
         # task_type.change(fn=change_task_type, inputs=[task_type], outputs=[inpaint_prompt])
-
-        DESCRIPTION = "### This demo from [Grounded-Segment-Anything](https://github.com/IDEA-Research/Grounded-Segment-Anything). Thanks for their excellent work."
-        DESCRIPTION += f'<p>For faster inference without waiting in queue, you may duplicate the space and upgrade to GPU in settings. <a href="https://huggingface.co/spaces/yizhangliu/Grounded-Segment-Anything?duplicate=true"><img style="display: inline; margin-top: 0em; margin-bottom: 0em" src="https://bit.ly/3gLdBN6" alt="Duplicate Space" /></a></p>'
-        gr.Markdown(DESCRIPTION)
 
     block.launch(server_name="0.0.0.0", debug=args.debug, share=args.share)

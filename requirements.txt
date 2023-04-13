@@ -20,3 +20,4 @@ transformers
 yapf
 segments-ai
 scipy
+skimage

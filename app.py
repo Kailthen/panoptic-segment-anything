@@ -119,7 +119,7 @@ def sam_masks_from_dino_boxes(predictor, image_array, boxes):
     boxes_xyxy = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
     transformed_boxes = predictor.transform.apply_boxes_torch(
         boxes_xyxy, image_array.shape[:2]
-    )
+    ).to(device)
     thing_masks, _, _ = predictor.predict_torch(
         point_coords=None,
         point_labels=None,

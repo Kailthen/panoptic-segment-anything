@@ -463,7 +463,7 @@ if __name__ == "__main__":
                     )
 
             with gr.Column():
-                gr.Plot()
+                plot = gr.Plot()
 
         run_button.click(
             fn=generate_panoptic_mask,
@@ -477,7 +477,7 @@ if __name__ == "__main__":
                 shrink_kernel_size,
                 num_samples_factor,
             ],
-            outputs=[gallery],
+            outputs=[plot],
         )
         # task_type.change(fn=change_task_type, inputs=[task_type], outputs=[inpaint_prompt])
 

@@ -114,9 +114,6 @@ def dino_detection(
             box_threshold=box_threshold,
             text_threshold=text_threshold,
         )
-    logits = logits.cpu()
-    boxes = boxes.cpu()
-    phrases = phrases.cpu()
     category_ids = [category_name_to_id[phrase] for phrase in phrases]
 
     if visualize:
@@ -311,6 +308,7 @@ def generate_panoptic_mask(
             warnings.warn(
                 "Failed to load custom C++ ops. Running on CPU mode Only in groundingdino!"
             )
+            groundingdino_device = "cpu"
 
     # detect boxes for "thing" categories using Grounding DINO
     thing_boxes, _ = dino_detection(

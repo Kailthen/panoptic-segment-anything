@@ -1,7 +1,5 @@
 import subprocess, os, sys
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
 result = subprocess.run(["pip", "install", "-e", "GroundingDINO"], check=True)
 print(f"pip install GroundingDINO = {result}")
 
@@ -55,20 +53,8 @@ from segment_anything import build_sam, SamPredictor
 from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
 
 
-def get_device():
-    from numba import cuda
-
-    if cuda.is_available():
-        device = "cuda:0"  # cuda.get_current_device()
-    else:
-        device = "cpu"
-    return device
-
-
-def load_model_hf(repo_id, filename, ckpt_config_filename, device="cpu"):
-    cache_config_file = hf_hub_download(repo_id=repo_id, filename=ckpt_config_filename)
-
-    args = SLConfig.fromfile(cache_config_file)
+def load_model_hf(model_config_path, repo_id, filename, device):
+    args = SLConfig.fromfile(model_config_path)
     model = build_model(args)
     args.device = device
 
@@ -298,17 +284,13 @@ def generate_panoptic_mask(
     image = image.convert("RGB")
     image_array = np.asarray(image)
 
-    groundingdino_device = "cpu"
     if device != "cpu":
         try:
             from GroundingDINO.groundingdino import _C
-
-            groundingdino_device = "cuda:0"
         except:
             warnings.warn(
                 "Failed to load custom C++ ops. Running on CPU mode Only in groundingdino!"
             )
-            groundingdino_device = "cpu"
 
     # detect boxes for "thing" categories using Grounding DINO
     thing_boxes, _ = dino_detection(
@@ -319,7 +301,7 @@ def generate_panoptic_mask(
         category_name_to_id,
         dino_box_threshold,
         dino_text_threshold,
-        groundingdino_device,
+        device,
     )
     # compute SAM image embedding
     sam_predictor.set_image(image_array)
@@ -376,29 +358,27 @@ def generate_panoptic_mask(
     return fig
 
 
+config_file = "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
 ckpt_repo_id = "ShilongLiu/GroundingDINO"
-ckpt_filename = "groundingdino_swinb_cogcoor.pth"
-ckpt_config_filename = "GroundingDINO_SwinB.cfg.py"
-
+ckpt_filename = "groundingdino_swint_ogc.pth"
 sam_checkpoint = "./sam_vit_h_4b8939.pth"
-output_dir = "outputs"
-device = "cuda"
 
-device = get_device()
-
-print(f"device={device}")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # initialize groundingdino model
-dino_model = load_model_hf(ckpt_repo_id, ckpt_filename, ckpt_config_filename, device)
+dino_model = load_model_hf(config_file, ckpt_repo_id, ckpt_filename, device)
 dino_model = dino_model.to(device)
 
 # initialize SAM
-sam_predictor = SamPredictor(build_sam(checkpoint=sam_checkpoint))
+sam = build_sam(checkpoint=sam_checkpoint)
+sam.to(device=device)
+sam_predictor = SamPredictor(sam)
 
 clipseg_processor = CLIPSegProcessor.from_pretrained("CIDAS/clipseg-rd64-refined")
 clipseg_model = CLIPSegForImageSegmentation.from_pretrained(
     "CIDAS/clipseg-rd64-refined"
 )
+clipseg_model.to(device)
 
 
 if __name__ == "__main__":

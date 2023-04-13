@@ -19,7 +19,8 @@ torch
 torchvision
 transformers
 yapf
-numba
 segment_anything
 scikit-image
 segments-ai
+--extra-index-url https://download.pytorch.org/whl/cu113
+torch

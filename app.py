@@ -363,7 +363,8 @@ ckpt_repo_id = "ShilongLiu/GroundingDINO"
 ckpt_filename = "groundingdino_swint_ogc.pth"
 sam_checkpoint = "./sam_vit_h_4b8939.pth"
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print("Using device:", device)
 
 # initialize groundingdino model
 dino_model = load_model_hf(config_file, ckpt_repo_id, ckpt_filename, device)

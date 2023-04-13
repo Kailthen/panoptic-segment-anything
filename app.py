@@ -3,9 +3,6 @@ import subprocess, os, sys
 result = subprocess.run(["pip", "install", "-e", "GroundingDINO"], check=True)
 print(f"pip install GroundingDINO = {result}")
 
-result = subprocess.run(["pip", "list"], check=True)
-print(f"pip list = {result}")
-
 sys.path.insert(0, "./GroundingDINO")
 
 if not os.path.exists("./sam_vit_h_4b8939.pth"):
@@ -42,9 +39,8 @@ from GroundingDINO.groundingdino.util import box_ops
 from GroundingDINO.groundingdino.util.slconfig import SLConfig
 from GroundingDINO.groundingdino.util.utils import (
     clean_state_dict,
-    get_phrases_from_posmap,
 )
-from GroundingDINO.groundingdino.util.inference import annotate, load_image, predict
+from GroundingDINO.groundingdino.util.inference import annotate, predict
 
 # segment anything
 from segment_anything import build_sam, SamPredictor
@@ -63,6 +59,7 @@ def load_model_hf(model_config_path, repo_id, filename, device):
     log = model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
     print("Model loaded from {} \n => {}".format(cache_file, log))
     _ = model.eval()
+    model = model.to(device)
     return model
 
 
@@ -99,6 +96,7 @@ def dino_detection(
             caption=detection_prompt,
             box_threshold=box_threshold,
             text_threshold=text_threshold,
+            device=device,
         )
     category_ids = [category_name_to_id[phrase] for phrase in phrases]
 
@@ -113,7 +111,7 @@ def dino_detection(
         return boxes, category_ids
 
 
-def sam_masks_from_dino_boxes(predictor, image_array, boxes):
+def sam_masks_from_dino_boxes(predictor, image_array, boxes, device):
     # box: normalized box xywh -> unnormalized xyxy
     H, W, _ = image_array.shape
     boxes_xyxy = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
@@ -284,14 +282,6 @@ def generate_panoptic_mask(
     image = image.convert("RGB")
     image_array = np.asarray(image)
 
-    if device != "cpu":
-        try:
-            from GroundingDINO.groundingdino import _C
-        except:
-            warnings.warn(
-                "Failed to load custom C++ ops. Running on CPU mode Only in groundingdino!"
-            )
-
     # detect boxes for "thing" categories using Grounding DINO
     thing_boxes, _ = dino_detection(
         dino_model,
@@ -306,7 +296,9 @@ def generate_panoptic_mask(
     # compute SAM image embedding
     sam_predictor.set_image(image_array)
     # get segmentation masks for the thing boxes
-    thing_masks = sam_masks_from_dino_boxes(sam_predictor, image_array, thing_boxes)
+    thing_masks = sam_masks_from_dino_boxes(
+        sam_predictor, image_array, thing_boxes, device
+    )
     # get rough segmentation masks for "stuff" categories using CLIPSeg
     clipseg_preds, clipseg_semantic_inds = clipseg_segmentation(
         clipseg_processor,
@@ -366,9 +358,16 @@ sam_checkpoint = "./sam_vit_h_4b8939.pth"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print("Using device:", device)
 
+if device != "cpu":
+    try:
+        from GroundingDINO.groundingdino import _C
+    except:
+        warnings.warn(
+            "Failed to load custom C++ ops. Running on CPU mode Only in groundingdino!"
+        )
+
 # initialize groundingdino model
 dino_model = load_model_hf(config_file, ckpt_repo_id, ckpt_filename, device)
-dino_model = dino_model.to(device)
 
 # initialize SAM
 sam = build_sam(checkpoint=sam_checkpoint)
@@ -458,6 +457,5 @@ if __name__ == "__main__":
             ],
             outputs=[plot],
         )
-        # task_type.change(fn=change_task_type, inputs=[task_type], outputs=[inpaint_prompt])
 
     block.launch(server_name="0.0.0.0", debug=args.debug, share=args.share)

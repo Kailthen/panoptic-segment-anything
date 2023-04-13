@@ -1,3 +1,4 @@
+accelerate
 addict
 diffusers
 gradio
@@ -18,6 +19,7 @@ torch
 torchvision
 transformers
 yapf
-segments-ai
-scipy
+numba
+segment_anything
 scikit-image
+segments-ai

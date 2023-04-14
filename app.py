@@ -393,63 +393,64 @@ if __name__ == "__main__":
 
     block = gr.Blocks(title="Panoptic Segment Anything").queue()
     with block:
-        title = gr.Markdown(
-            "# [Panoptic Segment Anything](https://github.com/segments-ai/panoptic-segment-anything): Demo"
-        )
-        description = gr.Markdown(
-            "## Demo for zero-shot panoptic segmentation using Segment Anything, Grounding DINO, and CLIPSeg."
-        )
-        with gr.Row():
-            with gr.Column():
-                input_image = gr.Image(source="upload", type="pil")
-                thing_category_names_string = gr.Textbox(
-                    label="Thing categories (i.e. categories with instances), comma-separated",
-                    placeholder="E.g. car, bus, person",
-                )
-                stuff_category_names_string = gr.Textbox(
-                    label="Stuff categories (i.e. categories without instances), comma-separated",
-                    placeholder="E.g. sky, road, buildings",
-                )
-                run_button = gr.Button(label="Run")
-                with gr.Accordion("Advanced options", open=False):
-                    box_threshold = gr.Slider(
-                        label="Grounding DINO box threshold",
-                        minimum=0.0,
-                        maximum=1.0,
-                        value=0.3,
-                        step=0.001,
+        with gr.Column():
+            title = gr.Markdown(
+                "# [Panoptic Segment Anything](https://github.com/segments-ai/panoptic-segment-anything)"
+            )
+            description = gr.Markdown(
+                "Demo for zero-shot panoptic segmentation using Segment Anything, Grounding DINO, and CLIPSeg."
+            )
+            with gr.Row():
+                with gr.Column():
+                    input_image = gr.Image(source="upload", type="pil")
+                    thing_category_names_string = gr.Textbox(
+                        label="Thing categories (i.e. categories with instances), comma-separated",
+                        placeholder="E.g. car, bus, person",
                     )
-                    text_threshold = gr.Slider(
-                        label="Grounding DINO text threshold",
-                        minimum=0.0,
-                        maximum=1.0,
-                        value=0.25,
-                        step=0.001,
+                    stuff_category_names_string = gr.Textbox(
+                        label="Stuff categories (i.e. categories without instances), comma-separated",
+                        placeholder="E.g. sky, road, buildings",
                     )
-                    segmentation_background_threshold = gr.Slider(
-                        label="Segmentation background threshold (under this threshold, a pixel is considered background)",
-                        minimum=0.0,
-                        maximum=1.0,
-                        value=0.1,
-                        step=0.001,
-                    )
-                    shrink_kernel_size = gr.Slider(
-                        label="Shrink kernel size (how much to shrink the mask before sampling points)",
-                        minimum=0,
-                        maximum=100,
-                        value=20,
-                        step=1,
-                    )
-                    num_samples_factor = gr.Slider(
-                        label="Number of samples factor (how many points to sample in the largest category)",
-                        minimum=0,
-                        maximum=1000,
-                        value=1000,
-                        step=1,
-                    )
+                    run_button = gr.Button(label="Run")
+                    with gr.Accordion("Advanced options", open=False):
+                        box_threshold = gr.Slider(
+                            label="Grounding DINO box threshold",
+                            minimum=0.0,
+                            maximum=1.0,
+                            value=0.3,
+                            step=0.001,
+                        )
+                        text_threshold = gr.Slider(
+                            label="Grounding DINO text threshold",
+                            minimum=0.0,
+                            maximum=1.0,
+                            value=0.25,
+                            step=0.001,
+                        )
+                        segmentation_background_threshold = gr.Slider(
+                            label="Segmentation background threshold (under this threshold, a pixel is considered background)",
+                            minimum=0.0,
+                            maximum=1.0,
+                            value=0.1,
+                            step=0.001,
+                        )
+                        shrink_kernel_size = gr.Slider(
+                            label="Shrink kernel size (how much to shrink the mask before sampling points)",
+                            minimum=0,
+                            maximum=100,
+                            value=20,
+                            step=1,
+                        )
+                        num_samples_factor = gr.Slider(
+                            label="Number of samples factor (how many points to sample in the largest category)",
+                            minimum=0,
+                            maximum=1000,
+                            value=1000,
+                            step=1,
+                        )
 
-            with gr.Column():
-                plot = gr.Plot()
+                with gr.Column():
+                    plot = gr.Plot()
 
             examples = gr.Examples(
                 examples=[

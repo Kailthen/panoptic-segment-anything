@@ -464,16 +464,6 @@ if __name__ == "__main__":
                         1000,
                     ],
                     [
-                        "dogs.png",
-                        "dog, wooden stick",
-                        "sky, sand",
-                        0.3,
-                        0.25,
-                        0.1,
-                        20,
-                        1000,
-                    ],
-                    [
                         "bxl.png",
                         "car, tram, motorcycle, person",
                         "road, buildings, sky",

@@ -383,17 +383,6 @@ clipseg_model = CLIPSegForImageSegmentation.from_pretrained(
 )
 clipseg_model.to(device)
 
-
-title = "Interactive demo: panoptic segment anything"
-description = "Demo for zero-shot panoptic segmentation using Segment Anything, Grounding DINO, and CLIPSeg. To use it, simply upload an image and add a text to mask (identify in the image), or use one of the examples below and click 'submit'."
-article = "<p style='text-align: center'><a href='https://github.com/segments-ai/panoptic-segment-anything'>Github</a></p>"
-
-examples = [
-    ["a2d2.png", "car, bus, person", "road, sky, buildings", 0.3, 0.25, 0.1, 20, 1000],
-    ["dogs.png", "dog, wooden stick", "sky, sand"],
-    ["bxl.png", "car, tram, motorcycle, person", "road, buildings, sky"],
-]
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Panoptic Segment Anything demo", add_help=True)
     parser.add_argument("--debug", action="store_true", help="using debug mode")
@@ -402,8 +391,14 @@ if __name__ == "__main__":
 
     print(f"args = {args}")
 
-    block = gr.Blocks().queue()
+    block = gr.Blocks(title="Panoptic Segment Anything").queue()
     with block:
+        title = gr.Markdown(
+            "# [Panoptic Segment Anything](https://github.com/segments-ai/panoptic-segment-anything): Demo"
+        )
+        description = gr.Markdown(
+            "## Demo for zero-shot panoptic segmentation using Segment Anything, Grounding DINO, and CLIPSeg."
+        )
         with gr.Row():
             with gr.Column():
                 input_image = gr.Image(source="upload", type="pil")
@@ -455,6 +450,54 @@ if __name__ == "__main__":
 
             with gr.Column():
                 plot = gr.Plot()
+
+            examples = gr.Examples(
+                examples=[
+                    [
+                        "a2d2.png",
+                        "car, bus, person",
+                        "road, sky, buildings",
+                        0.3,
+                        0.25,
+                        0.1,
+                        20,
+                        1000,
+                    ],
+                    [
+                        "dogs.png",
+                        "dog, wooden stick",
+                        "sky, sand",
+                        0.3,
+                        0.25,
+                        0.1,
+                        20,
+                        1000,
+                    ],
+                    [
+                        "bxl.png",
+                        "car, tram, motorcycle, person",
+                        "road, buildings, sky",
+                        0.3,
+                        0.25,
+                        0.1,
+                        20,
+                        1000,
+                    ],
+                ],
+                fn=generate_panoptic_mask,
+                inputs=[
+                    input_image,
+                    thing_category_names_string,
+                    stuff_category_names_string,
+                    box_threshold,
+                    text_threshold,
+                    segmentation_background_threshold,
+                    shrink_kernel_size,
+                    num_samples_factor,
+                ],
+                outputs=[plot],
+                cache_examples=True,
+            )
 
         run_button.click(
             fn=generate_panoptic_mask,

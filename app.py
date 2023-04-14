@@ -457,7 +457,7 @@ if __name__ == "__main__":
                     [
                         "a2d2.png",
                         "car, bus, person",
-                        "road, sky, buildings",
+                        "road, sky, buildings, sidewalk",
                         0.3,
                         0.25,
                         0.1,

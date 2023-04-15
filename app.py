@@ -353,7 +353,9 @@ def generate_panoptic_mask(
         .astype(int)
     )
     category_names = ["background"] + stuff_category_names + thing_category_names
-    subsection_label_pairs = zip(panoptic_bool_masks, category_names)
+    subsection_label_pairs = [
+        (panoptic_bool_masks[i], category_names[i]) for i in range(len(category_names))
+    ]
 
     return (image_array, subsection_label_pairs)
 

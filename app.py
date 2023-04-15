@@ -176,8 +176,10 @@ def semantic_inds_to_shrunken_bool_masks(
     bool_masks = torch.zeros((num_categories, *semantic_inds.shape), dtype=bool)
     for category in range(num_categories):
         binary_mask = semantic_inds == category
-        shrunken_binary_mask_array = ndimage.binary_erosion(
-            binary_mask.numpy(), structure=shrink_kernel
+        shrunken_binary_mask_array = (
+            ndimage.binary_erosion(binary_mask.numpy(), structure=shrink_kernel)
+            if shrink_kernel_size > 0
+            else binary_mask.numpy()
         )
         bool_masks[category] = torch.from_numpy(shrunken_binary_mask_array)
 

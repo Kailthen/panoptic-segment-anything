@@ -347,10 +347,15 @@ def generate_panoptic_mask(
         panoptic_inds[thing_mask.squeeze()] = ind
         ind += 1
 
-    fig = plt.figure()
-    plt.imshow(image)
-    plt.imshow(colorize(panoptic_inds), alpha=0.5)
-    return fig
+    panoptic_bool_masks = (
+        semantic_inds_to_shrunken_bool_masks(panoptic_inds, 0, ind + 1)
+        .numpy()
+        .astype(int)
+    )
+    category_names = ["background"] + stuff_category_names + thing_category_names
+    subsection_label_pairs = zip(panoptic_bool_masks, category_names)
+
+    return (image_array, subsection_label_pairs)
 
 
 config_file = "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
@@ -450,7 +455,7 @@ if __name__ == "__main__":
                         )
 
                 with gr.Column():
-                    plot = gr.Plot()
+                    annotated_image = gr.AnnotatedImage()
 
             examples = gr.Examples(
                 examples=[
@@ -502,7 +507,7 @@ if __name__ == "__main__":
                 shrink_kernel_size,
                 num_samples_factor,
             ],
-            outputs=[plot],
+            outputs=[annotated_image],
         )
 
     block.launch(server_name="0.0.0.0", debug=args.debug, share=args.share)

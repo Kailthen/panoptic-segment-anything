@@ -496,7 +496,7 @@ if __name__ == "__main__":
                     shrink_kernel_size,
                     num_samples_factor,
                 ],
-                outputs=[plot],
+                outputs=[annotated_image],
                 cache_examples=True,
             )
 

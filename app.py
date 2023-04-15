@@ -290,7 +290,7 @@ def generate_panoptic_mask(
     image_array = np.asarray(image)
 
     # detect boxes for "thing" categories using Grounding DINO
-    thing_boxes, _ = dino_detection(
+    thing_boxes, category_ids = dino_detection(
         dino_model,
         image,
         image_array,
@@ -357,9 +357,14 @@ def generate_panoptic_mask(
         .numpy()
         .astype(int)
     )
-    category_names = ["background"] + stuff_category_names + thing_category_names
+    panoptic_names = (
+        ["background"]
+        + stuff_category_names
+        + [category_names[category_id] for category_id in category_ids]
+    )
     subsection_label_pairs = [
-        (panoptic_bool_masks[i], category_names[i]) for i in range(len(category_names))
+        (panoptic_bool_masks[i], panoptic_name)
+        for i, panoptic_name in enumerate(panoptic_names)
     ]
 
     return (image_array, subsection_label_pairs)

@@ -267,7 +267,7 @@ def inds_to_segments_format(
 ):
     panoptic_inds_array = panoptic_inds.numpy().astype(np.uint32)
     bitmap_file = bitmap2file(panoptic_inds_array, is_segmentation_bitmap=True)
-    output_file.write(bitmap_file)
+    output_file.write(bitmap_file.read())
 
     unique_inds = np.unique(panoptic_inds_array)
     stuff_annotations = [

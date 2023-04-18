@@ -315,6 +315,7 @@ def generate_panoptic_mask(
         ]
         stuff_category_names = [category["name"] for category in stuff_categories]
         thing_category_names = [category["name"] for category in thing_categories]
+        category_names = thing_category_names + stuff_category_names
     else:
         # parse inputs
         thing_category_names = [

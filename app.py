@@ -293,9 +293,9 @@ def generate_panoptic_mask(
     segmentation_background_threshold=0.1,
     shrink_kernel_size=20,
     num_samples_factor=1000,
-    task_attributes_json=None,
+    task_attributes_json="",
 ):
-    if task_attributes_json is not None:
+    if task_attributes_json is not "":
         task_attributes = json.loads(task_attributes_json)
         categories = task_attributes["categories"]
         category_name_to_id = {
@@ -304,10 +304,14 @@ def generate_panoptic_mask(
         # split the categories into "stuff" categories (regions w/o instances)
         # and "thing" categories (objects/instances)
         stuff_categories = [
-            category for category in categories if not category["has_instances"]
+            category
+            for category in categories
+            if "has_instances" not in category or not category["has_instances"]
         ]
         thing_categories = [
-            category for category in categories if category["has_instances"]
+            category
+            for category in categories
+            if "has_instances" in category and category["has_instances"]
         ]
         stuff_category_names = [category["name"] for category in stuff_categories]
         thing_category_names = [category["name"] for category in thing_categories]

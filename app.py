@@ -407,7 +407,7 @@ def generate_panoptic_mask(
         for i, panoptic_name in enumerate(panoptic_names)
     ]
 
-    output_file_path = "tmp/segmentation_bitmap.png"
+    output_file_path = "output_segmentation_bitmap.png"
     stuff_category_ids = [category_name_to_id[name] for name in stuff_category_names]
     annotations = inds_to_segments_format(
         panoptic_inds, thing_category_ids, stuff_category_ids, output_file_path

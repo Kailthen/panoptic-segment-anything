@@ -23,7 +23,6 @@ import argparse
 import random
 import warnings
 import json
-import tempfile
 
 import gradio as gr
 import numpy as np
@@ -263,11 +262,12 @@ def sam_mask_from_points(predictor, image_array, points):
 
 
 def inds_to_segments_format(
-    panoptic_inds, thing_category_ids, stuff_category_ids, output_file
+    panoptic_inds, thing_category_ids, stuff_category_ids, output_file_path
 ):
     panoptic_inds_array = panoptic_inds.numpy().astype(np.uint32)
     bitmap_file = bitmap2file(panoptic_inds_array, is_segmentation_bitmap=True)
-    output_file.write(bitmap_file.read())
+    with open(output_file_path, "wb") as output_file:
+        output_file.write(bitmap_file.read())
 
     unique_inds = np.unique(panoptic_inds_array)
     stuff_annotations = [
@@ -407,14 +407,14 @@ def generate_panoptic_mask(
         for i, panoptic_name in enumerate(panoptic_names)
     ]
 
-    temp_file = tempfile.NamedTemporaryFile(suffix=".png")
+    output_file_path = "tmp/segmentation_bitmap.png"
     stuff_category_ids = [category_name_to_id[name] for name in stuff_category_names]
     annotations = inds_to_segments_format(
-        panoptic_inds, thing_category_ids, stuff_category_ids, temp_file
+        panoptic_inds, thing_category_ids, stuff_category_ids, output_file_path
     )
     annotations_json = json.dumps(annotations)
 
-    return (image_array, subsection_label_pairs), temp_file.name, annotations_json
+    return (image_array, subsection_label_pairs), output_file_path, annotations_json
 
 
 config_file = "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"

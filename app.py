@@ -110,7 +110,7 @@ def dino_detection(
         visualization = Image.fromarray(annotated_frame)
         return boxes, category_ids, visualization
     else:
-        return boxes, category_ids
+        return boxes, category_ids, phrases
 
 
 def sam_masks_from_dino_boxes(predictor, image_array, boxes, device):
@@ -156,13 +156,16 @@ def clipseg_segmentation(
     ).to(device)
     with torch.no_grad():
         outputs = model(**inputs)
+    logits = outputs.logits
+    if len(logits.shape) == 2:
+        logits = logits.unsqueeze(0)
     # resize the outputs
-    logits = nn.functional.interpolate(
-        outputs.logits.unsqueeze(1),
+    upscaled_logits = nn.functional.interpolate(
+        logits.unsqueeze(1),
         size=(image.size[1], image.size[0]),
         mode="bilinear",
     )
-    preds = torch.sigmoid(logits.squeeze())
+    preds = torch.sigmoid(upscaled_logits.squeeze(dim=1))
     semantic_inds = preds_to_semantic_inds(preds, background_threshold)
     return preds, semantic_inds
 
@@ -195,7 +198,7 @@ def clip_and_shrink_preds(semantic_inds, preds, shrink_kernel_size, num_categori
         torch.sum(bool_masks[i].int()).item() for i in range(1, bool_masks.size(0))
     ]
     max_size = max(sizes)
-    relative_sizes = [size / max_size for size in sizes]
+    relative_sizes = [size / max_size for size in sizes] if max_size > 0 else sizes
 
     # use bool masks to clip preds
     clipped_preds = torch.zeros_like(preds)
@@ -240,7 +243,7 @@ def upsample_pred(pred, image_source):
     else:
         target_height = int(upsampled_tensor.shape[2] * aspect_ratio)
         upsampled_tensor = upsampled_tensor[:, :, :target_height, :]
-    return upsampled_tensor.squeeze()
+    return upsampled_tensor.squeeze(dim=1)
 
 
 def sam_mask_from_points(predictor, image_array, points):
@@ -262,26 +265,30 @@ def sam_mask_from_points(predictor, image_array, points):
 
 
 def inds_to_segments_format(
-    panoptic_inds, thing_category_ids, stuff_category_ids, output_file_path
+    panoptic_inds, thing_category_ids, stuff_category_names, category_name_to_id
 ):
     panoptic_inds_array = panoptic_inds.numpy().astype(np.uint32)
     bitmap_file = bitmap2file(panoptic_inds_array, is_segmentation_bitmap=True)
-    with open(output_file_path, "wb") as output_file:
-        output_file.write(bitmap_file.read())
+    segmentation_bitmap = Image.open(bitmap_file)
+
+    stuff_category_ids = [
+        category_name_to_id[stuff_category_name]
+        for stuff_category_name in stuff_category_names
+    ]
 
     unique_inds = np.unique(panoptic_inds_array)
     stuff_annotations = [
-        {"id": i + 1, "category_id": stuff_category_id}
-        for i, stuff_category_id in enumerate(stuff_category_ids)
+        {"id": i, "category_id": stuff_category_ids[i - 1]}
+        for i in range(1, len(stuff_category_names) + 1)
         if i in unique_inds
     ]
     thing_annotations = [
-        {"id": len(stuff_category_ids) + 1 + i, "category_id": thing_category_id}
+        {"id": len(stuff_category_names) + 1 + i, "category_id": thing_category_id}
         for i, thing_category_id in enumerate(thing_category_ids)
     ]
     annotations = stuff_annotations + thing_annotations
 
-    return annotations
+    return segmentation_bitmap, annotations
 
 
 def generate_panoptic_mask(
@@ -295,7 +302,7 @@ def generate_panoptic_mask(
     num_samples_factor=1000,
     task_attributes_json="",
 ):
-    if task_attributes_json is not "":
+    if task_attributes_json != "":
         task_attributes = json.loads(task_attributes_json)
         categories = task_attributes["categories"]
         category_name_to_id = {
@@ -334,67 +341,89 @@ def generate_panoptic_mask(
     image = image.convert("RGB")
     image_array = np.asarray(image)
 
-    # detect boxes for "thing" categories using Grounding DINO
-    thing_boxes, thing_category_ids = dino_detection(
-        dino_model,
-        image,
-        image_array,
-        thing_category_names,
-        category_name_to_id,
-        dino_box_threshold,
-        dino_text_threshold,
-        device,
-    )
     # compute SAM image embedding
     sam_predictor.set_image(image_array)
-    # get segmentation masks for the thing boxes
-    thing_masks = sam_masks_from_dino_boxes(
-        sam_predictor, image_array, thing_boxes, device
-    )
-    # get rough segmentation masks for "stuff" categories using CLIPSeg
-    clipseg_preds, clipseg_semantic_inds = clipseg_segmentation(
-        clipseg_processor,
-        clipseg_model,
-        image,
-        stuff_category_names,
-        segmentation_background_threshold,
-        device,
-    )
-    # remove things from stuff masks
-    combined_things_mask = torch.any(thing_masks, dim=0)
-    clipseg_semantic_inds_without_things = clipseg_semantic_inds.clone()
-    clipseg_semantic_inds_without_things[combined_things_mask[0]] = 0
-    # clip CLIPSeg preds based on non-overlapping semantic segmentation inds (+ optionally shrink the mask of each category)
-    # also returns the relative size of each category
-    clipsed_clipped_preds, relative_sizes = clip_and_shrink_preds(
-        clipseg_semantic_inds_without_things,
-        clipseg_preds,
-        shrink_kernel_size,
-        len(stuff_category_names) + 1,
-    )
-    # get finer segmentation masks for the "stuff" categories using SAM
-    sam_preds = torch.zeros_like(clipsed_clipped_preds)
-    for i in range(clipsed_clipped_preds.shape[0]):
-        clipseg_pred = clipsed_clipped_preds[i]
-        # for each "stuff" category, sample points in the rough segmentation mask
-        num_samples = int(relative_sizes[i] * num_samples_factor)
-        if num_samples == 0:
-            continue
-        points = sample_points_based_on_preds(clipseg_pred.cpu().numpy(), num_samples)
-        if len(points) == 0:
-            continue
-        # use SAM to get mask for points
-        pred = sam_mask_from_points(sam_predictor, image_array, points)
-        sam_preds[i] = pred
-    sam_semantic_inds = preds_to_semantic_inds(
-        sam_preds, segmentation_background_threshold
-    )
+
+    # detect boxes for "thing" categories using Grounding DINO
+    thing_category_ids = []
+    thing_masks = []
+    thing_boxes = []
+    detected_thing_category_names = []
+    if len(thing_category_names) > 0:
+        thing_boxes, thing_category_ids, detected_thing_category_names = dino_detection(
+            dino_model,
+            image,
+            image_array,
+            thing_category_names,
+            category_name_to_id,
+            dino_box_threshold,
+            dino_text_threshold,
+            device,
+        )
+        if len(thing_boxes) > 0:
+            # get segmentation masks for the thing boxes
+            thing_masks = sam_masks_from_dino_boxes(
+                sam_predictor, image_array, thing_boxes, device
+            )
+    detected_stuff_category_names = []
+    if len(stuff_category_names) > 0:
+        # get rough segmentation masks for "stuff" categories using CLIPSeg
+        clipseg_preds, clipseg_semantic_inds = clipseg_segmentation(
+            clipseg_processor,
+            clipseg_model,
+            image,
+            stuff_category_names,
+            segmentation_background_threshold,
+            device,
+        )
+        # remove things from stuff masks
+        clipseg_semantic_inds_without_things = clipseg_semantic_inds.clone()
+        if len(thing_boxes) > 0:
+            combined_things_mask = torch.any(thing_masks, dim=0)
+            clipseg_semantic_inds_without_things[combined_things_mask[0]] = 0
+        # clip CLIPSeg preds based on non-overlapping semantic segmentation inds (+ optionally shrink the mask of each category)
+        # also returns the relative size of each category
+        clipsed_clipped_preds, relative_sizes = clip_and_shrink_preds(
+            clipseg_semantic_inds_without_things,
+            clipseg_preds,
+            shrink_kernel_size,
+            len(stuff_category_names) + 1,
+        )
+        # get finer segmentation masks for the "stuff" categories using SAM
+        sam_preds = torch.zeros_like(clipsed_clipped_preds)
+        for i in range(clipsed_clipped_preds.shape[0]):
+            clipseg_pred = clipsed_clipped_preds[i]
+            # for each "stuff" category, sample points in the rough segmentation mask
+            num_samples = int(relative_sizes[i] * num_samples_factor)
+            if num_samples == 0:
+                continue
+            points = sample_points_based_on_preds(
+                clipseg_pred.cpu().numpy(), num_samples
+            )
+            if len(points) == 0:
+                continue
+            # use SAM to get mask for points
+            pred = sam_mask_from_points(sam_predictor, image_array, points)
+            sam_preds[i] = pred
+        sam_semantic_inds = preds_to_semantic_inds(
+            sam_preds, segmentation_background_threshold
+        )
+        detected_stuff_category_names = [
+            category_name
+            for i, category_name in enumerate(category_names)
+            if i + 1 in np.unique(sam_semantic_inds.numpy())
+        ]
+
     # combine the thing inds and the stuff inds into panoptic inds
-    panoptic_inds = sam_semantic_inds.clone()
+    panoptic_inds = (
+        sam_semantic_inds.clone()
+        if len(stuff_category_names) > 0
+        else torch.zeros(image_array.shape[0], image_array.shape[1], dtype=torch.long)
+    )
     ind = len(stuff_category_names) + 1
     for thing_mask in thing_masks:
         # overlay thing mask on panoptic inds
-        panoptic_inds[thing_mask.squeeze()] = ind
+        panoptic_inds[thing_mask.squeeze(dim=0)] = ind
         ind += 1
 
     panoptic_bool_masks = (
@@ -403,23 +432,19 @@ def generate_panoptic_mask(
         .astype(int)
     )
     panoptic_names = (
-        ["background"]
-        + stuff_category_names
-        + [category_names[category_id] for category_id in thing_category_ids]
+        ["unlabeled"] + detected_stuff_category_names + detected_thing_category_names
     )
     subsection_label_pairs = [
         (panoptic_bool_masks[i], panoptic_name)
         for i, panoptic_name in enumerate(panoptic_names)
     ]
 
-    output_file_path = "output_segmentation_bitmap.png"
-    stuff_category_ids = [category_name_to_id[name] for name in stuff_category_names]
-    annotations = inds_to_segments_format(
-        panoptic_inds, thing_category_ids, stuff_category_ids, output_file_path
+    segmentation_bitmap, annotations = inds_to_segments_format(
+        panoptic_inds, thing_category_ids, stuff_category_names, category_name_to_id
     )
     annotations_json = json.dumps(annotations)
 
-    return (image_array, subsection_label_pairs), output_file_path, annotations_json
+    return (image_array, subsection_label_pairs), segmentation_bitmap, annotations_json
 
 
 config_file = "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
@@ -497,7 +522,7 @@ if __name__ == "__main__":
                             step=0.001,
                         )
                         segmentation_background_threshold = gr.Slider(
-                            label="Segmentation background threshold (under this threshold, a pixel is considered background)",
+                            label="Segmentation background threshold (under this threshold, a pixel is considered background/unlabeled)",
                             minimum=0.0,
                             maximum=1.0,
                             value=0.1,
@@ -529,11 +554,11 @@ if __name__ == "__main__":
 The segmentation bitmap is a 32-bit RGBA png image which contains the segmentation masks.
 The alpha channel is set to 255, and the remaining 24-bit values in the RGB channels correspond to the object ids in the annotations list.
 Unlabeled regions have a value of 0.
-Because of the large dynamic range, these png images may appear black in an image viewer.
+Because of the large dynamic range, the segmentation bitmap appears black in the image viewer.
 """
                         )
                         segmentation_bitmap = gr.Image(
-                            type="filepath", label="Segmentation bitmap"
+                            type="pil", label="Segmentation bitmap"
                         )
                         annotations_json = gr.Textbox(
                             label="Annotations JSON",

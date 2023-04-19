@@ -365,7 +365,6 @@ def generate_panoptic_mask(
             thing_masks = sam_masks_from_dino_boxes(
                 sam_predictor, image_array, thing_boxes, device
             )
-    detected_stuff_category_names = []
     if len(stuff_category_names) > 0:
         # get rough segmentation masks for "stuff" categories using CLIPSeg
         clipseg_preds, clipseg_semantic_inds = clipseg_segmentation(
@@ -408,11 +407,6 @@ def generate_panoptic_mask(
         sam_semantic_inds = preds_to_semantic_inds(
             sam_preds, segmentation_background_threshold
         )
-        detected_stuff_category_names = [
-            category_name
-            for i, category_name in enumerate(category_names)
-            if i + 1 in np.unique(sam_semantic_inds.numpy())
-        ]
 
     # combine the thing inds and the stuff inds into panoptic inds
     panoptic_inds = (
@@ -432,7 +426,7 @@ def generate_panoptic_mask(
         .astype(int)
     )
     panoptic_names = (
-        ["unlabeled"] + detected_stuff_category_names + detected_thing_category_names
+        ["unlabeled"] + stuff_category_names + detected_thing_category_names
     )
     subsection_label_pairs = [
         (panoptic_bool_masks[i], panoptic_name)

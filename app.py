@@ -88,7 +88,7 @@ def dino_detection(
     device,
     visualize=False,
 ):
-    detection_prompt = " ;. ".join(category_names) + " ;."
+    detection_prompt = " . ".join(category_names)
     dino_image = load_image_for_dino(image)
     dino_image = dino_image.to(device)
     with torch.no_grad():
@@ -100,7 +100,6 @@ def dino_detection(
             text_threshold=text_threshold,
             device=device,
         )
-    phrases = [phrase.replace(" ;", "").strip() for phrase in phrases]
     category_ids = [category_name_to_id[phrase] for phrase in phrases]
 
     if visualize:
